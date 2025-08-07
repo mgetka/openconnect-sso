@@ -157,6 +157,7 @@ async def _run(args, cfg):
         args.ac_version,
         args.cert,
         args.key,
+        args.scan_file,
     )
 
     if args.on_disconnect and not cfg.on_disconnect:
@@ -184,11 +185,13 @@ async def select_profile(profile_list):
     return selection
 
 
-def authenticate_to(host, proxy, credentials, display_mode, version, cert, key):
+def authenticate_to(
+    host, proxy, credentials, display_mode, version, cert, key, scan_file
+):
     logger.info("Authenticating to VPN endpoint", name=host.name, address=host.address)
-    return Authenticator(host, proxy, credentials, version, cert, key).authenticate(
-        display_mode
-    )
+    return Authenticator(
+        host, proxy, credentials, version, cert, key, scan_file
+    ).authenticate(display_mode)
 
 
 def run_openconnect(auth_info, host, proxy, version, args):

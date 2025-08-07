@@ -11,7 +11,14 @@ logger = structlog.get_logger()
 
 class Authenticator:
     def __init__(
-        self, host, proxy=None, credentials=None, version=None, cert=None, key=None
+        self,
+        host,
+        proxy=None,
+        credentials=None,
+        version=None,
+        cert=None,
+        key=None,
+        scan_file=None,
     ):
         self.host = host
         self.proxy = proxy
@@ -20,6 +27,7 @@ class Authenticator:
         self.cert = cert
         self.key = key
         self.session = create_http_session(proxy, version, cert, key)
+        self.scan_file = scan_file
 
     async def authenticate(self, display_mode):
         self._detect_authentication_target_url()
@@ -46,6 +54,9 @@ class Authenticator:
             auth_request_response, display_mode
         )
 
+        if self.scan_file:
+            self._complete_hostscan(auth_request_response)
+
         response = self._complete_authentication(auth_request_response, sso_token)
         if not isinstance(response, AuthCompleteResponse):
             logger.error(
@@ -55,6 +66,18 @@ class Authenticator:
             raise AuthenticationError(response)
 
         return response
+
+    def _complete_hostscan(self, auth_request_response):
+        with open(self.scan_file, "r", encoding="UTF-8") as file:
+            request = file.read()
+        logger.debug("Sending hostscan request", content=request)
+        response = self.session.post(
+            self.host.vpn_url + "+CSCOE+/sdesktop/scan.xml?reusebrowser=1",
+            data=request,
+            cookies={"sdesktop": auth_request_response.host_scan_token},
+            headers={"Content-Type": "text/xml", "Expect": ""},
+        )
+        logger.debug("CSD response received", content=response.content)
 
     def _detect_authentication_target_url(self):
         # Follow possible redirects in a GET request
@@ -153,6 +176,7 @@ def parse_auth_request_response(xml):
     assert xml.auth.get("id") == "main"
 
     try:
+        host_scan = getattr(xml, "host-scan")
         resp = AuthRequestResponse(
             auth_id=xml.auth.get("id"),
             auth_title=getattr(xml.auth, "title", ""),
@@ -162,6 +186,7 @@ def parse_auth_request_response(xml):
             login_url=xml.auth["sso-v2-login"],
             login_final_url=xml.auth["sso-v2-login-final"],
             token_cookie_name=xml.auth["sso-v2-token-cookie-name"],
+            host_scan_token=host_scan["host-scan-token"] if host_scan else "",
         )
     except AttributeError as exc:
         raise AuthResponseError(exc)
@@ -184,6 +209,7 @@ class AuthRequestResponse:
     login_url = attr.ib(converter=str)
     login_final_url = attr.ib(converter=str)
     token_cookie_name = attr.ib(converter=str)
+    host_scan_token = attr.ib(converter=str)
     opaque = attr.ib()
 
 
@@ -215,8 +241,9 @@ def _create_auth_finish_request(host, auth_info, sso_token, version):
     SessionId = getattr(E, "session-id")
     Auth = E.auth
     SsoToken = getattr(E, "sso-token")
+    HostScanToken = getattr(E, "host-scan-token")
 
-    root = ConfigAuth(
+    nodes = [
         {"client": "vpn", "type": "auth-reply", "aggregate-auth-version": "2"},
         Version({"who": "vpn"}, version),
         DeviceId("linux-64"),
@@ -224,7 +251,12 @@ def _create_auth_finish_request(host, auth_info, sso_token, version):
         SessionId(),
         auth_info.opaque,
         Auth(SsoToken(sso_token)),
-    )
+    ]
+
+    if auth_info.host_scan_token:
+        nodes.append(HostScanToken(auth_info.host_scan_token))
+
+    root = ConfigAuth(*nodes)
     return etree.tostring(
         root, pretty_print=True, xml_declaration=True, encoding="UTF-8"
     )

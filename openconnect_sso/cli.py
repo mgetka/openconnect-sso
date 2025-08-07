@@ -118,6 +118,12 @@ def create_argparser():
     )
 
     parser.add_argument(
+        "--scan-file",
+        help="Hostscan result file",
+        default="",
+    )
+
+    parser.add_argument(
         "openconnect_args",
         help="Arguments passed to openconnect",
         action=StoreOpenConnectArgs,
