@@ -176,7 +176,12 @@ def parse_auth_request_response(xml):
     assert xml.auth.get("id") == "main"
 
     try:
-        host_scan = getattr(xml, "host-scan")
+        host_scan = xml["host-scan"]["host-scan-token"]
+    except AttributeError:
+        host_scan = ""
+
+    try:
+        host_scan = getattr(xml, "host-scan", "")
         resp = AuthRequestResponse(
             auth_id=xml.auth.get("id"),
             auth_title=getattr(xml.auth, "title", ""),
@@ -186,7 +191,7 @@ def parse_auth_request_response(xml):
             login_url=xml.auth["sso-v2-login"],
             login_final_url=xml.auth["sso-v2-login-final"],
             token_cookie_name=xml.auth["sso-v2-token-cookie-name"],
-            host_scan_token=host_scan["host-scan-token"] if host_scan else "",
+            host_scan_token=host_scan,
         )
     except AttributeError as exc:
         raise AuthResponseError(exc)
