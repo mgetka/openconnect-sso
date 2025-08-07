@@ -10,12 +10,16 @@ logger = structlog.get_logger()
 
 
 class Authenticator:
-    def __init__(self, host, proxy=None, credentials=None, version=None):
+    def __init__(
+        self, host, proxy=None, credentials=None, version=None, cert=None, key=None
+    ):
         self.host = host
         self.proxy = proxy
         self.credentials = credentials
         self.version = version
-        self.session = create_http_session(proxy, version)
+        self.cert = cert
+        self.key = key
+        self.session = create_http_session(proxy, version, cert, key)
 
     async def authenticate(self, display_mode):
         self._detect_authentication_target_url()
@@ -90,7 +94,7 @@ class AuthResponseError(AuthenticationError):
     pass
 
 
-def create_http_session(proxy, version):
+def create_http_session(proxy, version, cert, key):
     session = requests.Session()
     session.proxies = {"http": proxy, "https": proxy}
     session.headers.update(
@@ -105,6 +109,8 @@ def create_http_session(proxy, version):
             # I know, it is invalid but that’s what Anyconnect sends
         }
     )
+    if cert:
+        session.cert = (cert, key) if key else cert
     return session
 
 

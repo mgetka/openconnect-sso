@@ -105,6 +105,19 @@ def create_argparser():
     )
 
     parser.add_argument(
+        "-E",
+        "--cert",
+        help="Client certificate file",
+        default="",
+    )
+
+    parser.add_argument(
+        "--key",
+        help="Private key file name",
+        default="",
+    )
+
+    parser.add_argument(
         "openconnect_args",
         help="Arguments passed to openconnect",
         action=StoreOpenConnectArgs,
