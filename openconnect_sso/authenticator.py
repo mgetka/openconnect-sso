@@ -181,7 +181,6 @@ def parse_auth_request_response(xml):
         host_scan = ""
 
     try:
-        host_scan = getattr(xml, "host-scan", "")
         resp = AuthRequestResponse(
             auth_id=xml.auth.get("id"),
             auth_title=getattr(xml.auth, "title", ""),
