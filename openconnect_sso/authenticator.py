@@ -32,7 +32,16 @@ class Authenticator:
     async def authenticate(self, display_mode):
         self._detect_authentication_target_url()
 
-        response = self._start_authentication()
+        try:
+            response = self._start_authentication()
+        except MissingClientCertificateError:
+            if not self.cert:
+                raise
+
+            logger.info("Client certificate requested.")
+            self.session.close()  # Close existing connections to renegotiate TLS
+            response = self._start_authentication()
+
         if not isinstance(response, AuthRequestResponse):
             logger.error(
                 "Could not start authentication. Invalid response type in current state",
@@ -117,6 +126,10 @@ class AuthResponseError(AuthenticationError):
     pass
 
 
+class MissingClientCertificateError(AuthenticationError):
+    pass
+
+
 def create_http_session(proxy, version, cert, key):
     session = requests.Session()
     session.proxies = {"http": proxy, "https": proxy}
@@ -173,6 +186,9 @@ def parse_response(resp):
 
 
 def parse_auth_request_response(xml):
+    if hasattr(xml, "client-cert-request"):
+        raise MissingClientCertificateError()
+
     assert xml.auth.get("id") == "main"
 
     try:
